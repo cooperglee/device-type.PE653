@@ -227,7 +227,7 @@ def on3() {
 }
 
 def off3() {
-	off(2)
+	off(3)
 }
 
 //switch4
