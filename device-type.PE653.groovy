@@ -1,8 +1,4 @@
-/** 
- *  PoolSwitch V2
- *
- *  Author: mkurtzjr@live.com
- *  Date: 2013-12-19
+/**
  *
  * This is a custom Device Type for the Intermatic PE653 Wireless 5-Circuit Pool/Spa Control System.
  *
