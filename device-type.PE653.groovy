@@ -1,4 +1,9 @@
 /** 
+ *  PoolSwitch V2
+ *
+ *  Author: mkurtzjr@live.com
+ *  Date: 2013-12-19
+ *
  * This is a custom Device Type for the Intermatic PE653 Wireless 5-Circuit Pool/Spa Control System.
  *
  * Installation
@@ -27,7 +32,8 @@
  *        on5
  *        off5
  */
- 
+
+
 preferences {
     input "operationMode1", "enum", title: "Boster Pump",
         metadata: [values: ["No",
@@ -71,6 +77,8 @@ metadata {
 	}
 }
 
+import physicalgraph.zwave.commands.*
+
 //Parse
 def parse(String description) {
 	def result = null
@@ -99,31 +107,31 @@ def parse(String description) {
 
 //Reports
 
-def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd) {
+def zwaveEvent(basicv1.BasicReport cmd) {
 	[name: "switch", value: cmd.value ? "on" : "off", type: "physical"]
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
+def zwaveEvent(switchbinaryv1.SwitchBinaryReport cmd) {
 	[name: "switch", value: cmd.value ? "on" : "off", type: "digital"]
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv1.SensorMultilevelReport cmd) {
+def zwaveEvent(sensormultilevelv1.SensorMultilevelReport cmd) {
     log.debug "$cmd"
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiInstanceReport cmd) {
+def zwaveEvent(multichannelv3.MultiInstanceReport cmd) {
     log.debug "$cmd"
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCapabilityReport cmd) {
+def zwaveEvent(multichannelv3.MultiChannelCapabilityReport cmd) {
     log.debug "$cmd"
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelEndPointReport cmd) {
+def zwaveEvent(multichannelv3.MultiChannelEndPointReport cmd) {
     log.debug "$cmd"
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiInstanceCmdEncap cmd) {
+def zwaveEvent(multichannelv3.MultiInstanceCmdEncap cmd) {
     log.debug "$cmd"
     def map = [ name: "switch$cmd.instance" ]
         if (cmd.commandClass == 37){
@@ -137,7 +145,7 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiInstanceCmdEncap
     createEvent(map)
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd) {
+def zwaveEvent(multichannelv3.MultiChannelCmdEncap cmd) {
     log.debug "$cmd"
     def map = [ name: "switch$cmd.destinationEndPoint" ]
         if (cmd.commandClass == 37){
@@ -151,114 +159,101 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap 
     createEvent(map)
 }
 
-def zwaveEvent(physicalgraph.zwave.Command cmd) {
-	// Handles all Z-Wave commands we aren't interested in
-	[:]
-    log.warn "Capture All $cmd"
+def zwaveEvent(cmd) {
+	log.warn "Captured zwave command $cmd"
 }
 
 //Commands
+
+//test
+def test() {
+	def cmds = []
+        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:1).format()
+        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:2).format()
+        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:3).format()
+        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:4).format()
+        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:5).format()
+		cmds << zwave.multiChannelV3.multiChannelEndPointGet().format()
+        cmds << zwave.multiChannelV3.multiInstanceGet(commandClass:37).format()
+	log.debug "Sending ${cmds.inspect()}"
+	delayBetween(cmds, 2300)
+}
+
+//test2
+def test2() {
+    log.debug "HubID: $zwaveHubNodeId"
+    log.debug "Device name: $device.displayName"
+    log.debug "Device: $device.id"
+    log.debug "Device: $device.name"
+    log.debug "Device: $device.label"
+    log.debug "$device.data"
+    log.debug "$device.rawDescription"
+}
 
 //switch instance
 def on(value) {
 log.debug "value $value"
 	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:1, destinationEndPoint: value, commandClass:37, command:1, parameter:[255]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:1, destinationEndPoint: value, commandClass:37, command:2).format()
+		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: value, destinationEndPoint: value, commandClass:37, command:1, parameter:[255]).format(),
+		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: value, destinationEndPoint: value, commandClass:37, command:2).format()
 	], 2300)
 }
 
 def off(value) {
 log.debug "value $value"
 	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:1, destinationEndPoint: value, commandClass:37, command:1, parameter:[0]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:1, destinationEndPoint: value, commandClass:37, command:2).format()
+		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: value, destinationEndPoint: value, commandClass:37, command:1, parameter:[0]).format(),
+		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: value, destinationEndPoint: value, commandClass:37, command:2).format()
 	], 2300)
 }
 
 //switch1
 def on1() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:1, destinationEndPoint:1, commandClass:37, command:1, parameter:[255]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:1, destinationEndPoint:1, commandClass:37, command:2).format()
-	], 2300)
+	on(1)
 }
 
 def off1() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:1, destinationEndPoint:1, commandClass:37, command:1, parameter:[0]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:1, destinationEndPoint:1, commandClass:37, command:2).format()
-	], 2300)
+	off(1)
 }
 
 //switch2
 def on2() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:2, destinationEndPoint:2, commandClass:37, command:1, parameter:[255]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:2, destinationEndPoint:2, commandClass:37, command:2).format()
-	], 2300)
+	on(2)
 }
 
 def off2() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:2, destinationEndPoint:2, commandClass:37, command:1, parameter:[0]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:2, destinationEndPoint:2, commandClass:37, command:2).format()
-	], 2300)
+	off(2)
 }
 
 //switch3
 def on3() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:3, destinationEndPoint:3, commandClass:37, command:1, parameter:[255]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:3, destinationEndPoint:3, commandClass:37, command:2).format()
-	], 2300)
+	on(3)
 }
 
 def off3() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:3, destinationEndPoint:3, commandClass:37, command:1, parameter:[0]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:3, destinationEndPoint:3, commandClass:37, command:2).format()
-	], 2300)
+	off(2)
 }
 
 //switch4
 def on4() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:4, destinationEndPoint:4, commandClass:37, command:1, parameter:[255]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:4, destinationEndPoint:4, commandClass:37, command:2).format()
-	], 2300)
+	on(4)
 }
 
 def off4() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:4, destinationEndPoint:4, commandClass:37, command:1, parameter:[0]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:4, destinationEndPoint:4, commandClass:37, command:2).format()
-	], 2300)
+	off(4)
 }
 
 //switch5
 def on5() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:5, destinationEndPoint:5, commandClass:37, command:1, parameter:[255]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:5, destinationEndPoint:5, commandClass:37, command:2).format()
-	], 2300)
+	on(5)
 }
 
 def off5() {
-	delayBetween([
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:5, destinationEndPoint:5, commandClass:37, command:1, parameter:[0]).format(),
-		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:5, destinationEndPoint:5, commandClass:37, command:2).format()
-	], 2300)
+	off(5)
 }
 
 def poll() {
-    delayBetween([
-    zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:1, destinationEndPoint:1, commandClass:37, command:2).format(),
-    zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:2, destinationEndPoint:2, commandClass:37, command:2).format(),
-    zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:3, destinationEndPoint:3, commandClass:37, command:2).format(),
-    zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:4, destinationEndPoint:4, commandClass:37, command:2).format(),
-    zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:5, destinationEndPoint:5, commandClass:37, command:2).format()
-    ], 2300)
+    refresh()
 }
 
 def refresh() {
