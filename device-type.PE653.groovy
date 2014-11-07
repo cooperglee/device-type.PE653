@@ -1,47 +1,52 @@
 /**
+ *  PoolSwitch
  *
- * This is a custom Device Type for the Intermatic PE653 Wireless 5-Circuit Pool/Spa Control System.
+ *  Copyright 2014 bigpunk6
  *
- * Installation
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
  *
- * Create a new device type (https://graph.api.smartthings.com/ide/devices)
- *    Capabilities:
- *        Configuration
- *        Refresh
- *        Polling
- *        Switch
- *    Custom Attribute
- *        switch1
- *        switch2
- *        switch3
- *        switch4
- *        switch5
- *    Custom Command
- *        on1
- *        off1
- *        on2
- *        off2
- *        on3
- *        off3
- *        on4
- *        off4
- *        on5
- *        off5
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
  */
-
-
-preferences {
-    input "operationMode1", "enum", title: "Boster Pump",
-        metadata: [values: ["No",
-                            "Uses Circuit-1",
-                            "Variable Speed pump Speed-1",
-                            "Variable Speed pump Speed-2",
-                            "Variable Speed pump Speed-3",
-                            "Variable Speed pump Speed-4"]]
-    input "operationMode2", "enum", title: "Pump Type", metadata: [values: ["1 Speed Pump","2 Speed Pump"]]
-}
-
 metadata {
+	definition (name: "PoolSwitch", author: "bigpunk6") {
+        capability "Actuator"
+		capability "Switch"
+		capability "Polling"
+		capability "Configuration"
+		capability "Refresh"
+		capability "Temperature Measurement"
+		capability "Sensor"
+
+		attribute "switch1", "string"
+		attribute "switch2", "string"
+		attribute "switch3", "string"
+		attribute "switch4", "string"
+		attribute "switch5", "string"
+
+		command "onMulti"
+		command "offMulti"
+        command "on1"
+		command "off1"
+        command "on2"
+		command "off2"
+        command "on3"
+		command "off3"
+        command "on4"
+		command "off4"
+        command "on5"
+		command "off5"
+	}
+
+	simulator {
+		// TODO: define status and reply messages here
+	}
+    
 	// tile definitions
 	tiles {
 		standardTile("switch1", "device.switch1",canChangeIcon: true) {
@@ -64,12 +69,31 @@ metadata {
 			state "on", label: "switch5", action: "off5", icon: "st.switches.switch.on", backgroundColor: "#79b821"
 			state "off", label: "switch5", action:"on5", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
 		}
-		standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat") {
+        
+        standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat") {
 			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
-
-		main "switch1"
-		details(["switch1","switch2","switch3","switch4","switch5","refresh"])
+        
+        standardTile("configure", "device.configure", inactiveLabel: false, decoration: "flat") {
+			state "configure", label:'', action:"configuration.configure", icon:"st.secondary.configure"
+		}
+        
+        valueTile("temperature", "device.temperature") {
+			state("temperature", label:'${currentValue}°', unit:"F",
+				backgroundColors:[
+					[value: 32, color: "#153591"],
+					[value: 54, color: "#1e9cbb"],
+					[value: 64, color: "#90d2a7"],
+					[value: 74, color: "#44b621"],
+					[value: 90, color: "#f1d801"],
+					[value: 98, color: "#d04e00"],
+					[value: 110, color: "#bc2323"]
+				]
+			)
+		}
+        
+		main(["switch1","switch2","switch3","switch4","switch5","temperature"])
+        details(["switch1","switch2","switch3","switch4","switch5","temperature","refresh"])
 	}
 }
 
@@ -78,7 +102,7 @@ import physicalgraph.zwave.commands.*
 //Parse
 def parse(String description) {
 	def result = null
-	def cmd = zwave.parse(description, [0x20: 1, 0x70: 1, 0x86: 1, 0x60:3, 0x31:1, 0x25:1, 0x81:1])
+	def cmd = zwave.parse(description, [0x20: 1, 0x70: 2, 0x86: 1, 0x60:3, 0x31:1, 0x25:1, 0x81:1])
 	if (cmd) {
         if( cmd.CMD == "6006" ) {
             def map = [ name: "switch$cmd.instance" ]
@@ -95,24 +119,41 @@ def parse(String description) {
 		result = createEvent(zwaveEvent(cmd))
         }
 	}
-    log.debug "Parse cmd $cmd"
 	log.debug "Parse returned ${result?.descriptionText}"
-    log.debug "Parse \"$description\" parsed to ${result.inspect()}"
 	return result
 }
 
 //Reports
-
-def zwaveEvent(basicv1.BasicReport cmd) {
-	[name: "switch", value: cmd.value ? "on" : "off", type: "physical"]
+def zwaveEvent(sensormultilevelv1.SensorMultilevelReport cmd)
+{
+	def map = [:]
+	map.value = cmd.scaledSensorValue.toString()
+	map.unit = cmd.scale == 1 ? "F" : "C"
+	map.name = "temperature"
+	map
 }
 
-def zwaveEvent(switchbinaryv1.SwitchBinaryReport cmd) {
-	[name: "switch", value: cmd.value ? "on" : "off", type: "digital"]
-}
-
-def zwaveEvent(sensormultilevelv1.SensorMultilevelReport cmd) {
-    log.debug "$cmd"
+def zwaveEvent(thermostatsetpointv2.ThermostatSetpointReport cmd)
+{
+	def map = [:]
+	map.value = cmd.scaledValue.toString()
+	map.unit = cmd.scale == 1 ? "F" : "C"
+	map.displayed = false
+	switch (cmd.setpointType) {
+		case 1:
+			map.name = "poolSetpoint"
+			break;
+		case 7:
+			map.name = "spaSetpoint"
+			break;
+		default:
+			return [:]
+	}
+	// So we can respond with same format
+	state.size = cmd.size
+	state.scale = cmd.scale
+	state.precision = cmd.precision
+	map
 }
 
 def zwaveEvent(multichannelv3.MultiInstanceReport cmd) {
@@ -161,42 +202,53 @@ def zwaveEvent(cmd) {
 
 //Commands
 
-//test
-def test() {
-	def cmds = []
-        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:1).format()
-        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:2).format()
-        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:3).format()
-        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:4).format()
-        cmds << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:5).format()
-		cmds << zwave.multiChannelV3.multiChannelEndPointGet().format()
-        cmds << zwave.multiChannelV3.multiInstanceGet(commandClass:37).format()
-	log.debug "Sending ${cmds.inspect()}"
-	delayBetween(cmds, 2300)
+def setPoolSetpoint(degreesF) {
+	setHeatingSetpoint(degreesF.toDouble())
 }
 
-//test2
-def test2() {
-    log.debug "HubID: $zwaveHubNodeId"
-    log.debug "Device name: $device.displayName"
-    log.debug "Device: $device.id"
-    log.debug "Device: $device.name"
-    log.debug "Device: $device.label"
-    log.debug "$device.data"
-    log.debug "$device.rawDescription"
+def setPoolSetpoint(Double degreesF) {
+	def p = (state.precision == null) ? 1 : state.precision
+	delayBetween([
+		zwave.thermostatSetpointV1.thermostatSetpointSet(setpointType: 1, scale: 1, precision: p, scaledValue: degreesF).format(),
+		zwave.thermostatSetpointV1.thermostatSetpointGet(setpointType: 1).format()
+	])
+}
+
+def setSpaSetpoint(degreesF) {
+	setSpaSetpoint(degreesF.toDouble())
+}
+
+def setSpaSetpoint(Double degreesF) {
+	def p = (state.precision == null) ? 1 : state.precision
+	delayBetween([
+		zwave.thermostatSetpointV1.thermostatSetpointSet(setpointType: 7, scale: 1, precision: p, scaledValue: degreesF).format(),
+		zwave.thermostatSetpointV1.thermostatSetpointGet(setpointType: 7).format()
+	])
+}
+
+def on() {
+	delayBetween([
+		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: 1, destinationEndPoint: 1, commandClass:37, command:1, parameter:[255]).format(),
+		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: 1, destinationEndPoint: 1, commandClass:37, command:2).format()
+	], 2300)
+}
+
+def off() {
+	delayBetween([
+		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: 1, destinationEndPoint: 1, commandClass:37, command:1, parameter:[0]).format(),
+		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: 1, destinationEndPoint: 1, commandClass:37, command:2).format()
+	], 2300)
 }
 
 //switch instance
-def on(value) {
-log.debug "value $value"
+def onMulti(value) {
 	delayBetween([
 		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: value, destinationEndPoint: value, commandClass:37, command:1, parameter:[255]).format(),
 		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: value, destinationEndPoint: value, commandClass:37, command:2).format()
 	], 2300)
 }
 
-def off(value) {
-log.debug "value $value"
+def offMulti(value) {
 	delayBetween([
 		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: value, destinationEndPoint: value, commandClass:37, command:1, parameter:[0]).format(),
 		zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: value, destinationEndPoint: value, commandClass:37, command:2).format()
@@ -205,51 +257,51 @@ log.debug "value $value"
 
 //switch1
 def on1() {
-	on(1)
+	onMulti(1)
 }
 
 def off1() {
-	off(1)
+	offMulti(1)
 }
 
 //switch2
 def on2() {
-	on(2)
+	onMulti(2)
 }
 
 def off2() {
-	off(2)
+	offMulti(2)
 }
 
 //switch3
 def on3() {
-	on(3)
+	onMulti(3)
 }
 
 def off3() {
-	off(3)
+	offMulti(3)
 }
 
 //switch4
 def on4() {
-	on(4)
+	onMulti(4)
 }
 
 def off4() {
-	off(4)
+	offMulti(4)
 }
 
 //switch5
 def on5() {
-	on(5)
+	onMulti(5)
 }
 
 def off5() {
-	off(5)
+	offMulti(5)
 }
 
 def poll() {
-    refresh()
+    zwave.sensorMultilevelV1.sensorMultilevelGet().format()
 }
 
 def refresh() {
@@ -258,36 +310,9 @@ def refresh() {
     zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:2, destinationEndPoint:2, commandClass:37, command:2).format(),
     zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:3, destinationEndPoint:3, commandClass:37, command:2).format(),
     zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:4, destinationEndPoint:4, commandClass:37, command:2).format(),
-    zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:5, destinationEndPoint:5, commandClass:37, command:2).format()
-    ], 2300)
-}
-                         
-def configure() {
-    def operationMode = [
-        value1: 7,
-        value2: "two"
-    ]
-
-    // Set Operation Mode variables based on the user preferences
-    if (operationMode1 == "No") {
-        switch ( operationMode2 ) {
-            case "1 Speed Pump":
-                operationMode['value1'] = 0x00
-                break
-            case "2 Speed Pump":
-                operationMode['value1'] = 0x02
-                break
-         }
-    } else {
-        switch ( operationMode2 ) {
-            case "1 Speed Pump":
-                operationMode['value1'] = 0x01
-                break
-            case "2 Speed Pump":
-                operationMode['value1'] = 0x03
-                break
-        }
-    }
-log.debug operationMode
-log.debug "$operationMode.value1"
+    zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint:5, destinationEndPoint:5, commandClass:37, command:2).format(),
+    zwave.sensorMultilevelV1.sensorMultilevelGet().format(),
+    zwave.thermostatSetpointV1.thermostatSetpointGet(setpointType: 1).format(),
+    zwave.thermostatSetpointV1.thermostatSetpointGet(setpointType: 7).format()
+    ], 2500)
 }
